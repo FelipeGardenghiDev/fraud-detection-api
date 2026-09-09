@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "blacklist", indexes = {
-        @Index(name = "idx_blacklist_val_type", columnList = "type, value")
+        @Index(name = "idx_blacklist_val_type", columnList = "type, target_value")
 })
 @Getter
 @Setter
@@ -26,7 +26,7 @@ public class BlacklistEntity {
     @Column(nullable = false)
     private BlacklistType type;
 
-    @Column(nullable = false)
+    @Column(name = "target_value", nullable = false)
     private String value;
 
     @Column(nullable = false, length = 500)

@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: 8080
 
 spring:
@@ -43,6 +43,8 @@ springdoc:
 
 # Regras configuráveis do Motor Antifraude
 fraud:
+  security:
+    api-key: "fraud-secret-key-2026"
   rules:
     high-amount:
       threshold-suspicious: 5000.00
