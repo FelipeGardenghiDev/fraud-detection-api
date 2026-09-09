@@ -79,11 +79,15 @@ flowchart TD
 | :--- | :--- |
 | **Linguagem** | Java 21 LTS |
 | **Framework** | Spring Boot 3.4.3 |
-| **Persistência** | Spring Data JPA / Hibernate |
+| **Segurança** | Spring Security 6 (API Key Authentication) |
+| **Mensageria Assíncrona** | RabbitMQ (Event-Driven Architecture) |
+| **Cache & Performance** | Redis 7 (Sliding Window Velocity Tracking) |
+| **Persistência** | Spring Data JPA / Hibernate 6 |
 | **Bancos de Dados** | H2 Database (Dev/Testes) & PostgreSQL 16 (Produção) |
-| **Documentação** | Springdoc OpenAPI 3 (Swagger UI) |
+| **Documentação** | Springdoc OpenAPI 3 (Swagger UI com Authorize) |
 | **Containerização** | Docker & Docker Compose |
-| **Testes** | JUnit 5, Mockito |
+| **CI/CD** | GitHub Actions (Automated Build & Tests) |
+| **Testes** | JUnit 5, Mockito, Spring Security Test |
 
 ---
 
