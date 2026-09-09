@@ -4,7 +4,10 @@ import com.felipedev.frauddetection.application.dto.FraudAnalysisResponseDto;
 import com.felipedev.frauddetection.application.dto.TransactionAnalysisRequestDto;
 import com.felipedev.frauddetection.domain.model.*;
 import com.felipedev.frauddetection.domain.rule.FraudRule;
+import com.felipedev.frauddetection.infrastructure.cache.RedisVelocityTracker;
 import com.felipedev.frauddetection.infrastructure.exception.ResourceNotFoundException;
+import com.felipedev.frauddetection.infrastructure.messaging.FraudAlertEvent;
+import com.felipedev.frauddetection.infrastructure.messaging.FraudEventPublisher;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.BlacklistEntity;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.ExecutedRuleEntity;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.FraudAnalysisEntity;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,6 +34,8 @@ public class FraudAnalysisService {
     private final List<FraudRule> rules;
     private final FraudAnalysisRepository analysisRepository;
     private final BlacklistRepository blacklistRepository;
+    private final RedisVelocityTracker redisVelocityTracker;
+    private final FraudEventPublisher fraudEventPublisher;
 
     @Value("${fraud.rules.velocity.time-window-minutes:5}")
     private int velocityWindowMinutes;
@@ -39,15 +45,33 @@ public class FraudAnalysisService {
         log.info("Iniciando avaliação antifraude para a transação: {} do cliente: {}",
                 request.getTransactionId(), request.getCustomerId());
 
+        // 1. Verificação de Idempotência: Evita reprocessamento de transações já avaliadas
+        Optional<FraudAnalysisEntity> existing = analysisRepository.findByTransactionId(request.getTransactionId());
+        if (existing.isPresent()) {
+            log.info("Idempotency Hit: Transação {} já avaliada anteriormente. Retornando análise em cache.", request.getTransactionId());
+            FraudAnalysisEntity entity = existing.get();
+            List<RuleExecutionResult> rulesList = entity.getExecutedRules().stream()
+                    .map(r -> RuleExecutionResult.builder()
+                            .ruleName(r.getRuleName())
+                            .triggered(r.isTriggered())
+                            .scoreContribution(r.getScoreContribution())
+                            .reason(r.getReason())
+                            .build())
+                    .toList();
+            FraudAnalysisResponseDto dto = toDto(entity, rulesList);
+            dto.setIdempotencyHit(true);
+            return dto;
+        }
+
         LocalDateTime now = LocalDateTime.now();
         if (request.getOccurredAt() == null) {
             request.setOccurredAt(now);
         }
 
-        // 1. Constrói o contexto de enriquecimento de dados
+        // 2. Constrói o contexto de enriquecimento de dados (com Redis + Blacklist)
         AnalysisContext context = buildAnalysisContext(request, now);
 
-        // 2. Executa a esteira de regras (Rule Engine Pipeline)
+        // 3. Executa a esteira de regras (Rule Engine Pipeline)
         List<RuleExecutionResult> ruleResults = new ArrayList<>();
         int accumulatedScore = 0;
 
@@ -66,7 +90,7 @@ public class FraudAnalysisService {
         int finalScore = Math.min(100, Math.max(0, accumulatedScore));
         Decision decision = Decision.fromScore(finalScore);
 
-        // 3. Persiste a análise e auditoria no banco
+        // 4. Persiste a análise e auditoria no banco
         FraudAnalysisEntity entity = FraudAnalysisEntity.builder()
                 .transactionId(request.getTransactionId())
                 .customerId(request.getCustomerId())
@@ -90,10 +114,30 @@ public class FraudAnalysisService {
 
         FraudAnalysisEntity saved = analysisRepository.save(entity);
 
+        // 5. Atualiza o contador de velocidade no Redis
+        redisVelocityTracker.incrementTransactionCount(request.getCustomerId(), velocityWindowMinutes);
+
+        // 6. Publica evento assíncrono no RabbitMQ para alertas de risco
+        if (decision == Decision.BLOCKED || decision == Decision.SUSPICIOUS) {
+            fraudEventPublisher.publishAlert(FraudAlertEvent.builder()
+                    .analysisId(saved.getId())
+                    .transactionId(saved.getTransactionId())
+                    .customerId(saved.getCustomerId())
+                    .amount(saved.getAmount())
+                    .paymentMethod(saved.getPaymentMethod())
+                    .riskScore(finalScore)
+                    .decision(decision)
+                    .reason(decision.getDescription())
+                    .timestamp(now)
+                    .build());
+        }
+
         log.info("Análise concluída com sucesso. ID: {}, Score: {}, Decisão: {}",
                 saved.getId(), finalScore, decision);
 
-        return toDto(saved, ruleResults);
+        FraudAnalysisResponseDto responseDto = toDto(saved, ruleResults);
+        responseDto.setIdempotencyHit(false);
+        return responseDto;
     }
 
     @Transactional(readOnly = true)
@@ -131,8 +175,8 @@ public class FraudAnalysisService {
     }
 
     private AnalysisContext buildAnalysisContext(TransactionAnalysisRequestDto request, LocalDateTime now) {
-        LocalDateTime windowStart = now.minusMinutes(velocityWindowMinutes);
-        long recentTxCount = analysisRepository.countByCustomerIdAndAnalyzedAtAfter(request.getCustomerId(), windowStart);
+        // Busca contagem de transações recentes via Redis com fallback para banco
+        int recentTxCount = redisVelocityTracker.getRecentTransactionCount(request.getCustomerId(), velocityWindowMinutes);
 
         boolean cpfBlocked = blacklistRepository.existsByTypeAndValueAndActiveTrue(
                 BlacklistType.CPF, request.getCustomerCpf());
@@ -150,7 +194,7 @@ public class FraudAnalysisService {
         }
 
         return AnalysisContext.builder()
-                .recentTransactionCount((int) recentTxCount)
+                .recentTransactionCount(recentTxCount)
                 .cpfBlacklisted(cpfBlocked)
                 .ipBlacklisted(ipBlocked)
                 .deviceBlacklisted(deviceBlocked)

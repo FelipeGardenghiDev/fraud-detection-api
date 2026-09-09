@@ -45,6 +45,12 @@ springdoc:
 fraud:
   security:
     api-key: "fraud-secret-key-2026"
+  messaging:
+    enabled: false
+    listener:
+      enabled: false
+  redis:
+    enabled: false
   rules:
     high-amount:
       threshold-suspicious: 5000.00

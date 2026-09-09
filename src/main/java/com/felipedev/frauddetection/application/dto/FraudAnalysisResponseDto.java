@@ -40,6 +40,9 @@ public class FraudAnalysisResponseDto {
     @Schema(description = "Detalhamento de todas as regras avaliadas")
     private List<RuleExecutionResult> ruleBreakdown;
 
+    @Schema(description = "Indica se o resultado foi recuperado de uma requisição anterior idêntica (Idempotência)", example = "false")
+    private boolean idempotencyHit;
+
     @Schema(description = "Data e hora do processamento", example = "2026-09-09T15:20:00")
     private LocalDateTime analyzedAt;
 }

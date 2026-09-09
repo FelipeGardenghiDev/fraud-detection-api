@@ -1,16 +1,35 @@
-﻿spring:
+spring:
   config:
     activate:
       on-profile: postgres
 
   datasource:
-    url: jdbc:postgresql://\:\/\
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:frauddetection}
     driver-class-name: org.postgresql.Driver
-    username: \
-    password: \
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+fraud:
+  messaging:
+    enabled: true
+    listener:
+      enabled: true
+  redis:
+    enabled: true
