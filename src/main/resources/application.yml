@@ -1,0 +1,56 @@
+﻿server:
+  port: 8080
+
+spring:
+  application:
+    name: fraud-detection-api
+
+  datasource:
+    url: jdbc:h2:mem:frauddetectiondb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# Regras configuráveis do Motor Antifraude
+fraud:
+  rules:
+    high-amount:
+      threshold-suspicious: 5000.00
+      threshold-critical: 20000.00
+    velocity:
+      time-window-minutes: 5
+      max-transactions: 3
+    night-window:
+      start-hour: 22
+      end-hour: 6
+      high-amount-threshold: 1000.00
