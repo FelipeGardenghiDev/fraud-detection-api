@@ -193,11 +193,40 @@ curl -X POST http://localhost:8080/api/v1/fraud-analyses \
   ],
   "analyzedAt": "2026-09-09T15:25:00"
 }
-`
+```
+
+---
+
+## 📈 Roadmap de Engenharia & Prontidão Corporativa (Padrão Pleno)
+
+Para consolidar a maturidade da aplicação nos padrões técnicos rigorosos exigidos por fintechs e instituições de pagamento de grande porte, as seguintes etapas de engenharia estão documentadas e em ciclo de evolução contínua:
+
+### 1. 🗄️ Governança de Banco de Dados com Flyway & Java 21 Virtual Threads
+- [ ] **Migrações Versionadas com Flyway:** Eliminação do `hibernate.ddl-auto: update` em favor de migrações determinísticas (`V1__create_tables.sql`, `V2__seed_blacklist.sql`) com `ddl-auto: validate`.
+- [ ] **Java 21 Virtual Threads (Loom):** Habilitação de threads virtuais (`spring.threads.virtual.enabled: true`) para processamento assíncrono e I/O não-bloqueante de altíssima concorrência.
+- [ ] **Otimização JPA:** Refatoração de relacionamentos `@OneToMany` para `FetchType.LAZY` e consultas estruturadas para evitar problemas de N+1.
+
+### 2. 🏛️ Pureza de Domínio & Arquitetura Limpa (Clean Arch / DDD)
+- [ ] **Desacoplamento do Domínio:** Refatoração da esteira de regras (`domain.rule`) para processar uma entidade de domínio pura (`Transaction`), removendo qualquer dependência direta de DTOs da camada de transporte HTTP.
+- [ ] **Value Objects:** Modelagem explícita de `Cpf`, `IpAddress` e `Money` para blindagem contra estados inconsistentes no domínio.
+
+### 3. 📊 Observabilidade Avançada & Rastreabilidade Distribuída
+- [ ] **Correlation ID via MDC (Mapped Diagnostic Context):** Injeção de `X-Correlation-ID` em todas as linhas de log para rastreamento de ponta a ponta da transação em arquitetura de microsserviços.
+- [ ] **Métricas de Negócio Customizadas no Micrometer / Prometheus:**
+  - `fraud_transactions_analyzed_total` (tags: decision=APPROVED|SUSPICIOUS|BLOCKED).
+  - `fraud_capital_blocked_reais_total` (capital financeiro protegido de fraudes).
+  - `fraud_rule_engine_duration_seconds` (latência de execução da esteira).
+
+### 4. 🛡️ Resiliência Declarativa com Resilience4j
+- [ ] **Circuit Breaker & Retry:** Aplicação declarativa do Resilience4j na integração com Redis e RabbitMQ, garantindo degradação graciosa com fallback sem indisponibilidade da API.
+
+### 5. 🧪 Testes de Integração com Testcontainers & JaCoCo
+- [ ] **Testes com Infraestrutura Real (Testcontainers):** Testes de integração end-to-end instanciando contêineres Docker reais de PostgreSQL, Redis e RabbitMQ durante o ciclo de teste do Maven.
+- [ ] **Cobertura de Código (JaCoCo):** Adição do plugin Maven do JaCoCo no pipeline de CI com meta de cobertura mínima de 80% das regras de negócio.
 
 ---
 
 ## 👨‍💻 Autor
 
-Desenvolvido por **[Felipe Gonçalves](https://github.com/FelipeGardenghiDev)**  
-Conecte-se comigo no [LinkedIn](https://linkedin.com) ou pelo GitHub!
+Desenvolvido por **[Felipe Gardenghi](https://github.com/FelipeGardenghiDev)**  
+Conecte-se comigo no [LinkedIn](https://www.linkedin.com/in/felipegardenghi/) ou pelo [GitHub](https://github.com/FelipeGardenghiDev)!
