@@ -35,8 +35,9 @@ public class FraudEventPublisher {
             log.info("Evento de fraude publicado no RabbitMQ: Exchange={}, RoutingKey={}, TxID={}",
                     RabbitMqConfig.FRAUD_EXCHANGE, routingKey, event.getTransactionId());
         } catch (Exception ex) {
-            log.warn("Falha de conexão com RabbitMQ para o evento TxID={}. O microsserviço continuará operando. Causa: {}",
+            log.warn("Falha de conexão com RabbitMQ para o evento TxID={}: {}",
                     event.getTransactionId(), ex.getMessage());
+            throw ex;
         }
     }
 }

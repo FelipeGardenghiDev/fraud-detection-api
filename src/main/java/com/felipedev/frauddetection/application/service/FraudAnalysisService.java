@@ -3,11 +3,11 @@ package com.felipedev.frauddetection.application.service;
 import com.felipedev.frauddetection.application.dto.FraudAnalysisResponseDto;
 import com.felipedev.frauddetection.application.dto.TransactionAnalysisRequestDto;
 import com.felipedev.frauddetection.domain.model.*;
-import com.felipedev.frauddetection.domain.rule.FraudRule;
+import com.felipedev.frauddetection.domain.rule.FraudRuleEngine;
 import com.felipedev.frauddetection.infrastructure.cache.RedisVelocityTracker;
 import com.felipedev.frauddetection.infrastructure.exception.ResourceNotFoundException;
 import com.felipedev.frauddetection.infrastructure.messaging.FraudAlertEvent;
-import com.felipedev.frauddetection.infrastructure.messaging.FraudEventPublisher;
+import com.felipedev.frauddetection.infrastructure.outbox.OutboxService;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.BlacklistEntity;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.ExecutedRuleEntity;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.FraudAnalysisEntity;
@@ -31,11 +31,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FraudAnalysisService {
 
-    private final List<FraudRule> rules;
+    private final FraudRuleEngine ruleEngine;
     private final FraudAnalysisRepository analysisRepository;
     private final BlacklistRepository blacklistRepository;
     private final RedisVelocityTracker redisVelocityTracker;
-    private final FraudEventPublisher fraudEventPublisher;
+    private final OutboxService outboxService;
 
     @Value("${fraud.rules.velocity.time-window-minutes:5}")
     private int velocityWindowMinutes;
@@ -71,24 +71,11 @@ public class FraudAnalysisService {
         // 2. Constrói o contexto de enriquecimento de dados (com Redis + Blacklist)
         AnalysisContext context = buildAnalysisContext(request, now);
 
-        // 3. Executa a esteira de regras (Rule Engine Pipeline)
-        List<RuleExecutionResult> ruleResults = new ArrayList<>();
-        int accumulatedScore = 0;
-
-        for (FraudRule rule : rules) {
-            RuleExecutionResult result = rule.evaluate(request, context);
-            ruleResults.add(result);
-
-            if (result.isTriggered()) {
-                accumulatedScore += result.getScoreContribution();
-                log.debug("Regra disparada: {} (+{} pontos). Motivo: {}",
-                        rule.getName(), result.getScoreContribution(), result.getReason());
-            }
-        }
-
-        // Limita o score entre 0 e 100
-        int finalScore = Math.min(100, Math.max(0, accumulatedScore));
-        Decision decision = Decision.fromScore(finalScore);
+        // 3. Executa a esteira de regras através do motor desacoplado (Domain Service / Rule Engine Pipeline)
+        FraudRuleEngine.RulePipelineResult pipelineResult = ruleEngine.executePipeline(request, context);
+        int finalScore = pipelineResult.riskScore().getValue();
+        Decision decision = pipelineResult.decision();
+        List<RuleExecutionResult> ruleResults = pipelineResult.executedRules();
 
         // 4. Persiste a análise e auditoria no banco
         FraudAnalysisEntity entity = FraudAnalysisEntity.builder()
@@ -117,9 +104,10 @@ public class FraudAnalysisService {
         // 5. Atualiza o contador de velocidade no Redis
         redisVelocityTracker.incrementTransactionCount(request.getCustomerId(), velocityWindowMinutes);
 
-        // 6. Publica evento assíncrono no RabbitMQ para alertas de risco
+        // 6. Transactional Outbox Pattern: Grava o alerta na mesma transação atômica do banco,
+        // eliminando perda de eventos caso o RabbitMQ esteja temporariamente indisponível.
         if (decision == Decision.BLOCKED || decision == Decision.SUSPICIOUS) {
-            fraudEventPublisher.publishAlert(FraudAlertEvent.builder()
+            FraudAlertEvent alertEvent = FraudAlertEvent.builder()
                     .analysisId(saved.getId())
                     .transactionId(saved.getTransactionId())
                     .customerId(saved.getCustomerId())
@@ -129,7 +117,9 @@ public class FraudAnalysisService {
                     .decision(decision)
                     .reason(decision.getDescription())
                     .timestamp(now)
-                    .build());
+                    .build();
+
+            outboxService.enqueue("FRAUD_ANALYSIS", saved.getId(), "FRAUD_ALERT", alertEvent);
         }
 
         log.info("Análise concluída com sucesso. ID: {}, Score: {}, Decisão: {}",
