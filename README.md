@@ -134,6 +134,67 @@ O projeto conta com uma especificação completa de infraestrutura corporativa n
 
 ---
 
+## ⚡ Exemplo Prático de Uso (cURL & Payloads)
+
+### Requisição de Análise de Risco:
+```bash
+curl -X POST "http://localhost:8080/api/v1/fraud-analyses" \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: fraud-secret-key-2026" \
+  -d '{
+    "transactionId": "TX-2026-987654",
+    "customerId": "CUST-9921",
+    "customerCpf": "52998224725",
+    "amount": 25000.00,
+    "paymentMethod": "PIX",
+    "ipAddress": "189.120.45.12",
+    "deviceFingerprint": "dev_fp_abc987xyz",
+    "location": "São Paulo, SP"
+  }'
+```
+
+### Resposta JSON (com Breakdown de Regras & Auditoria):
+```json
+{
+  "analysisId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "transactionId": "TX-2026-987654",
+  "customerId": "CUST-9921",
+  "riskScore": 95,
+  "decision": "BLOCKED",
+  "decisionDescription": "Transação bloqueada por alto risco de fraude.",
+  "idempotencyHit": false,
+  "executedRules": [
+    {
+      "ruleName": "BLACKLIST_CHECK",
+      "triggered": false,
+      "scoreContribution": 0,
+      "reason": "Regra não violada."
+    },
+    {
+      "ruleName": "HIGH_AMOUNT_DETECTION",
+      "triggered": true,
+      "scoreContribution": 60,
+      "reason": "Valor da transação (R$ 25000.00) atinge nível crítico (>= R$ 20000.00)."
+    },
+    {
+      "ruleName": "NIGHT_WINDOW_RESTRICTION",
+      "triggered": true,
+      "scoreContribution": 35,
+      "reason": "Transação noturna de valor elevado (R$ 25000.00 > limite de R$ 1000.00)."
+    },
+    {
+      "ruleName": "VELOCITY_BURST_CHECK",
+      "triggered": false,
+      "scoreContribution": 0,
+      "reason": "Regra não violada."
+    }
+  ],
+  "analyzedAt": "2026-09-23T00:15:00"
+}
+```
+
+---
+
 ## 💻 Como Executar o Projeto Localmente ($0 de Custo)
 
 ### Pré-requisitos
