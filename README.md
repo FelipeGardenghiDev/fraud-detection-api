@@ -2,7 +2,11 @@
 
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen?logo=springboot)
-[![Java CI with Maven](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml/badge.svg)](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml/badge.svg)](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/Tests-32%20Passing%20(100%25)-success?logo=junit5)
+![Coverage](https://img.shields.io/badge/JaCoCo-Automated%20Report-blue?logo=githubactions)
+![Terraform](https://img.shields.io/badge/IaC-Terraform%20AWS-7B42BC?logo=terraform)
+![Pattern](https://img.shields.io/badge/Pattern-Transactional%20Outbox-darkblue)
 ![Spring Security](https://img.shields.io/badge/Security-API%20Key%20Auth-red?logo=springsecurity)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Event%20Driven-orange?logo=rabbitmq)
 ![Redis](https://img.shields.io/badge/Redis-Sliding%20Window%20Cache-red?logo=redis)
@@ -12,28 +16,30 @@
 
 Uma **API corporativa de alta performance** para análise de risco e prevenção a fraudes em transações financeiras (PIX, Cartão de Crédito, Débito e Boletos) em tempo real.
 
-Desenvolvida com **Java 21**, **Spring Boot 3**, e arquitetura baseada em **Rule Engine Pipeline (Pipeline de Regras Extensível)**, garantindo auditoria completa, baixa latência e total conformidade com padrões de mercado de Fintechs e Instituições de Pagamento.
+Desenvolvida com **Java 21**, **Spring Boot 3**, **Domain-Driven Design (DDD)**, **Transactional Outbox Pattern** e **Infraestrutura como Código (Terraform na AWS)**, garantindo resiliência em sistemas distribuídos, auditoria estrita, baixa latência e total conformidade com padrões de mercado de Fintechs e Instituições de Pagamento.
 
 ---
 
 ## 🚀 Funcionalidades Principais
 
-- **Motor de Regras Antifraude (Rule Engine):**
+- **Motor de Regras Antifraude (Rule Engine Pipeline):**
   - 🚫 **Blacklist Restritiva:** Bloqueio instantâneo (Score 100) para CPFs, IPs e Device Fingerprints reincidentes em fraudes.
   - 💸 **High Amount Detection:** Detecção de valores anômalos com pontuações proporcionais à gravidade.
   - 🌙 **Janela Noturna de Risco:** Regras estritas para transações de alto valor entre 22h e 06h (mitigação de sequestro relâmpago e fraudes no PIX).
   - ⚡ **Velocity Burst Check:** Detecção de rajadas de tentativas consecutivas com **Redis Sliding Window Cache** e fallback resiliente para banco relacional.
+- **Resiliência Distribuída com Transactional Outbox Pattern:**
+  - Elimina a perda de eventos em falhas de rede do broker de mensageria: a análise e o evento de alerta são persistidos na **mesma transação atômica ACID**.
+  - Worker agendado (`OutboxPublisherJob`) realiza a entrega com retentativas controladas e transição para estado de falha/Dead-Letter (`FAILED`).
+- **Domain-Driven Design (DDD) & Value Objects:**
+  - `Cpf`: Validação rigorosa pelo algoritmo oficial Módulo 11 da Receita Federal e mascaramento LGPD (`***.456.789-**`).
+  - `RiskScore`: Encapsulamento dos limites de pontuação (0 a 100) e cálculo da decisão correspondente.
+  - `TransactionAmount`: Invariantes monetárias e operações de comparação financeira precisas.
+  - `RuleSpecification`: Implementação do Specification Pattern permitindo composição lógica (`and`, `or`, `not`) de predicados antifraude.
 - **Idempotência de Transações:**
   - Detecção de requisições duplicadas via `transactionId` com retorno imediato do veredito sem reprocessamento desnecessário (`idempotencyHit: true`).
-- **Arquitetura Orientada a Eventos (RabbitMQ):**
-  - Publicação assíncrona de eventos de risco (`FraudAlertEvent`) para a exchange `fraud.exchange` em caso de transações `BLOCKED` ou `SUSPICIOUS`.
-- **Cálculo de Risk Score (0 a 100):**
-  - `0 - 39`: **APPROVED** (Aprovada)
-  - `40 - 79`: **SUSPICIOUS** (Suspeita — encaminhada para análise manual/biometria)
-  - `80 - 100`: **BLOCKED** (Bloqueada por alto risco de fraude)
 - **Segurança Inter-Microsserviços:** Autenticação por cabeçalho `X-API-KEY` com Spring Security e suporte nativo no Swagger UI.
-- **Carga de Dados Inicial (Seed):** Inicialização com CPFs, IPs e aparelhos suspeitos pré-populados para testes imediatos.
-- **Auditoria Completa & Métricas:** Histórico detalhado de cada regra avaliada e indicadores de capital protegido.
+- **Auditoria Completa & Métricas:** Histórico detalhado de cada regra avaliada e indicadores consolidados de capital financeiro protegido.
+- **Infraestrutura como Código (Terraform):** Especificação completa de nuvem na AWS com VPC, ECS Fargate, RDS PostgreSQL Multi-AZ, ElastiCache Redis e Amazon MQ RabbitMQ.
 
 ---
 
@@ -45,7 +51,7 @@ flowchart TD
     IDEM -->|Sim| RET[Retorna Análise em Cache / Idempotency Hit]
     IDEM -->|Não| B[Enriquecimento de Contexto Redis + Blacklist]
     
-    B --> C[Esteira de Regras - Rule Engine]
+    B --> C[Esteira Desacoplada: FraudRuleEngine]
     
     subgraph Rule Engine Pipeline
         C --> R1[1. Blacklist Check CPF/IP/Device]
@@ -54,175 +60,108 @@ flowchart TD
         R3 --> R4[4. Velocity Burst Check via Redis]
     end
     
-    R4 --> D[Agregação e Cálculo do Risk Score]
+    R4 --> D[Agregação e Cálculo do RiskScore VO]
     D --> E{Decisão Final}
     
     E -->|Score 0-39| F[APPROVED]
     E -->|Score 40-79| G[SUSPICIOUS]
     E -->|Score 80-100| H[BLOCKED]
     
-    F --> I[(Persistência & Auditoria)]
-    G --> I
-    H --> I
+    subgraph ACID Transaction
+        F --> DB[(Persistência: fraud_analyses)]
+        G --> DB
+        H --> DB
+        G -.->|Enfileira Alerta| OUTBOX[(Tabela: outbox_events)]
+        H -.->|Enfileira Alerta| OUTBOX
+    end
     
-    G -.->|Evento de Alerta| RMQ[📨 RabbitMQ Exchange fraud.exchange]
-    H -.->|Evento de Bloqueio| RMQ
+    subgraph Transactional Outbox Poller
+        OUTBOX --> JOB[OutboxPublisherJob Poller]
+        JOB -->|Publicação Confiável At-Least-Once| RMQ[📨 RabbitMQ Exchange fraud.exchange]
+    end
     
-    I --> J[Resposta JSON com Breakdown das Regras]
+    DB --> J[Resposta JSON com Breakdown das Regras]
 ```
+
+---
+
+## ☁️ Infraestrutura como Código (Terraform na AWS)
+
+O projeto conta com uma especificação completa de infraestrutura corporativa na pasta [`terraform/`](./terraform), cobrindo:
+
+* **Rede Isolada (VPC):** Subnets públicas (apenas para o ALB) e subnets privadas (para containers e bancos).
+* **AWS ECS Fargate:** Cluster serverless para a aplicação Spring Boot com auto-scaling e health checks no `/actuator/health`.
+* **Amazon RDS PostgreSQL:** Banco de dados relacional Multi-AZ em subnets privadas com criptografia em repouso.
+* **Amazon ElastiCache Redis:** Cluster gerenciado para suporte de alto throughput na janela de velocidade (*Velocity Tracker*).
+* **Amazon MQ RabbitMQ:** Broker de mensageria gerenciado na nuvem para eventos de alerta.
+* **Segurança Encadeada:** Security Groups que permitem tráfego apenas entre camadas adjacentes (ALB ➔ ECS ➔ Bancos/Filas).
+
+> 📖 **Consulte a documentação completa da infraestrutura em [`terraform/README.md`](./terraform/README.md).**
 
 ---
 
 ## 🛠️ Stack Tecnológica
 
-| Componente | Tecnologia |
-| :--- | :--- |
-| **Linguagem** | Java 21 LTS |
-| **Framework** | Spring Boot 3.4.3 |
-| **Segurança** | Spring Security 6 (API Key Authentication) |
-| **Mensageria Assíncrona** | RabbitMQ (Event-Driven Architecture) |
-| **Cache & Performance** | Redis 7 (Sliding Window Velocity Tracking) |
-| **Persistência** | Spring Data JPA / Hibernate 6 |
-| **Bancos de Dados** | H2 Database (Dev/Testes) & PostgreSQL 16 (Produção) |
-| **Documentação** | Springdoc OpenAPI 3 (Swagger UI com Authorize) |
-| **Containerização** | Docker & Docker Compose |
-| **CI/CD** | GitHub Actions (Automated Build & Tests) |
-| **Testes** | JUnit 5, Mockito, Spring Security Test |
+| Componente | Tecnologia | Papel no Sistema |
+| :--- | :--- | :--- |
+| **Linguagem** | Java 21 LTS | Runtime moderno com Records, Pattern Matching e Virtual Threads |
+| **Framework** | Spring Boot 3.4.3 | Núcleo do microsserviço (Data JPA, Security, Actuator) |
+| **Padrões de Design** | DDD + Transactional Outbox + Specification | Resiliência distribuída, desacoplamento e modelo rico |
+| **Infraestrutura** | Terraform (IaC) | Provisionamento automatizado e reproduzível na AWS |
+| **Mensageria** | RabbitMQ (Spring AMQP) | Publicação assíncrona orientada a eventos (`FraudAlertEvent`) |
+| **Cache & In-Memory** | Redis 7 | Janela de contagem de velocidade deslizante (*Sliding Window*) |
+| **Persistência** | PostgreSQL 16 & H2 | H2 em memória para testes velozes; PostgreSQL para produção |
+| **Cobertura de Testes**| JaCoCo + JUnit 5 + Mockito | **32 testes automatizados (100% passing)** com relatório de cobertura |
+| **Documentação** | OpenAPI 3 / Swagger | Interface interativa com suporte a autenticação `X-API-KEY` |
+| **CI/CD** | GitHub Actions | Validação de build Maven, execução de testes e lint de Terraform |
 
 ---
 
 ## 📋 Endpoints Principais
 
-### 1. Análises Antifraude (/api/v1/fraud-analyses)
-- POST /api/v1/fraud-analyses: Submete uma transação para avaliação em tempo real.
-- GET /api/v1/fraud-analyses/{id}: Consulta os detalhes e o detalhamento das regras de uma análise.
-- GET /api/v1/fraud-analyses/customer/{customerId}: Histórico de análises de um cliente.
+### 1. Análises Antifraude (`/api/v1/fraud-analyses`)
+- `POST /api/v1/fraud-analyses`: Submete uma transação para avaliação em tempo real.
+- `GET /api/v1/fraud-analyses/{id}`: Consulta os detalhes e o detalhamento das regras de uma análise.
+- `GET /api/v1/fraud-analyses/customer/{customerId}`: Histórico de análises de um cliente.
 
-### 2. Blacklist Restritiva (/api/v1/blacklist)
-- POST /api/v1/blacklist: Adiciona CPF, IP ou Device Fingerprint à lista de bloqueio.
-- GET /api/v1/blacklist: Lista os registros ativos da blacklist.
-- DELETE /api/v1/blacklist/{id}: Desativa um registro.
+### 2. Blacklist Restritiva (`/api/v1/blacklist`)
+- `POST /api/v1/blacklist`: Adiciona CPF, IP ou Device Fingerprint à lista de bloqueio.
+- `GET /api/v1/blacklist`: Lista os registros ativos da blacklist.
+- `DELETE /api/v1/blacklist/{id}`: Desativa um registro.
 
-### 3. Métricas (/api/v1/metrics)
-- GET /api/v1/metrics/overview: Indicadores consolidados de transações aprovadas, bloqueadas e capital protegido.
+### 3. Métricas (`/api/v1/metrics`)
+- `GET /api/v1/metrics/overview`: Indicadores consolidados de transações aprovadas, bloqueadas e capital protegido.
 
 ---
 
-## 💻 Como Executar o Projeto
+## 💻 Como Executar o Projeto Localmente ($0 de Custo)
 
 ### Pré-requisitos
-- JDK 21 instalado
+- JDK 21 ou superior instalado
 - Git
 
 ### Opção 1: Executando com o Maven Wrapper (Em memória H2)
-`ash
+```bash
 # Clone o repositório
 git clone https://github.com/FelipeGardenghiDev/fraud-detection-api.git
 cd fraud-detection-api
 
-# Execute os testes automatizados
-./mvnw test
-
-# Inicie a aplicação
+# Execute com o perfil de desenvolvimento
 ./mvnw spring-boot:run
-`
-> A aplicação iniciará na porta 8080.
-> - **Swagger UI:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-> - **H2 Console:** [http://localhost:8080/h2-console](http://localhost:8080/h2-console) (JDBC URL: jdbc:h2:mem:frauddetectiondb)
-
-### Opção 2: Executando com Docker Compose (Com PostgreSQL)
-`ash
-docker compose up --build -d
-`
-
----
-
-## 🧪 Exemplo de Requisição (cURL)
-
-`ash
-curl -X POST http://localhost:8080/api/v1/fraud-analyses \
-  -H "Content-Type: application/json" \
-  -H "X-API-KEY: fraud-secret-key-2026" \
-  -d '{
-    "transactionId": "TX-2026-0987",
-    "customerId": "CUST-1044",
-    "customerCpf": "12345678900",
-    "amount": 25000.00,
-    "paymentMethod": "PIX",
-    "ipAddress": "189.40.22.15",
-    "deviceFingerprint": "dev-fp-xyz-99",
-    "location": "São Paulo, SP",
-    "occurredAt": "2026-09-09T23:30:00"
-  }'
-`
-
-### Exemplo de Resposta:
-`json
-{
-  "analysisId": "e1f37e40-5b12-4c28-98e3-08709d4351a9",
-  "transactionId": "TX-2026-0987",
-  "customerId": "CUST-1044",
-  "riskScore": 95,
-  "decision": "BLOCKED",
-  "decisionDescription": "Transação bloqueada devido a alto risco de fraude.",
-  "ruleBreakdown": [
-    {
-      "ruleName": "BLACKLIST_CHECK",
-      "triggered": false,
-      "scoreContribution": 0,
-      "reason": "Regra não violada."
-    },
-    {
-      "ruleName": "HIGH_AMOUNT_DETECTION",
-      "triggered": true,
-      "scoreContribution": 60,
-      "reason": "Valor da transação (R$ 25000.00) atinge nível crítico (>= R$ 20000.00)."
-    },
-    {
-      "ruleName": "NIGHT_WINDOW_RESTRICTION",
-      "triggered": true,
-      "scoreContribution": 35,
-      "reason": "Transação noturna (23:30) de valor elevado (R$ 25000.00 > limite de R$ 1000.00)."
-    },
-    {
-      "ruleName": "VELOCITY_BURST_CHECK",
-      "triggered": false,
-      "scoreContribution": 0,
-      "reason": "Regra não violada."
-    }
-  ],
-  "analyzedAt": "2026-09-09T15:25:00"
-}
 ```
 
----
+Acesse o Swagger UI em: `http://localhost:8080/swagger-ui.html`
 
-## 📈 Roadmap de Engenharia & Prontidão Corporativa (Padrão Pleno)
+### Opção 2: Executando com Docker Compose (PostgreSQL + Redis + RabbitMQ)
+```bash
+docker compose up -d
+```
 
-Para consolidar a maturidade da aplicação nos padrões técnicos rigorosos exigidos por fintechs e instituições de pagamento de grande porte, as seguintes etapas de engenharia estão documentadas e em ciclo de evolução contínua:
-
-### 1. 🗄️ Governança de Banco de Dados com Flyway & Java 21 Virtual Threads
-- [ ] **Migrações Versionadas com Flyway:** Eliminação do `hibernate.ddl-auto: update` em favor de migrações determinísticas (`V1__create_tables.sql`, `V2__seed_blacklist.sql`) com `ddl-auto: validate`.
-- [ ] **Java 21 Virtual Threads (Loom):** Habilitação de threads virtuais (`spring.threads.virtual.enabled: true`) para processamento assíncrono e I/O não-bloqueante de altíssima concorrência.
-- [ ] **Otimização JPA:** Refatoração de relacionamentos `@OneToMany` para `FetchType.LAZY` e consultas estruturadas para evitar problemas de N+1.
-
-### 2. 🏛️ Pureza de Domínio & Arquitetura Limpa (Clean Arch / DDD)
-- [ ] **Desacoplamento do Domínio:** Refatoração da esteira de regras (`domain.rule`) para processar uma entidade de domínio pura (`Transaction`), removendo qualquer dependência direta de DTOs da camada de transporte HTTP.
-- [ ] **Value Objects:** Modelagem explícita de `Cpf`, `IpAddress` e `Money` para blindagem contra estados inconsistentes no domínio.
-
-### 3. 📊 Observabilidade Avançada & Rastreabilidade Distribuída
-- [ ] **Correlation ID via MDC (Mapped Diagnostic Context):** Injeção de `X-Correlation-ID` em todas as linhas de log para rastreamento de ponta a ponta da transação em arquitetura de microsserviços.
-- [ ] **Métricas de Negócio Customizadas no Micrometer / Prometheus:**
-  - `fraud_transactions_analyzed_total` (tags: decision=APPROVED|SUSPICIOUS|BLOCKED).
-  - `fraud_capital_blocked_reais_total` (capital financeiro protegido de fraudes).
-  - `fraud_rule_engine_duration_seconds` (latência de execução da esteira).
-
-### 4. 🛡️ Resiliência Declarativa com Resilience4j
-- [ ] **Circuit Breaker & Retry:** Aplicação declarativa do Resilience4j na integração com Redis e RabbitMQ, garantindo degradação graciosa com fallback sem indisponibilidade da API.
-
-### 5. 🧪 Testes de Integração com Testcontainers & JaCoCo
-- [ ] **Testes com Infraestrutura Real (Testcontainers):** Testes de integração end-to-end instanciando contêineres Docker reais de PostgreSQL, Redis e RabbitMQ durante o ciclo de teste do Maven.
-- [ ] **Cobertura de Código (JaCoCo):** Adição do plugin Maven do JaCoCo no pipeline de CI com meta de cobertura mínima de 80% das regras de negócio.
+### Opção 3: Executar a Suíte de Testes e Gerar Relatório JaCoCo
+```bash
+./mvnw clean test
+```
+O relatório HTML detalhado de cobertura será gerado em: `target/site/jacoco/index.html`.
 
 ---
 
