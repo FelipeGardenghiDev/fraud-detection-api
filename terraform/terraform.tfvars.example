@@ -1,0 +1,23 @@
+# Exemplo de configuração de variáveis para implantação em produção (AWS)
+aws_region        = "us-east-1"
+environment       = "production"
+app_name          = "fraud-detection-api"
+vpc_cidr          = "10.0.0.0/16"
+
+# Imagem gerada pela pipeline do GitHub Actions / Container Registry
+container_image   = "ghcr.io/felipegardenghidev/fraud-detection-api:latest"
+container_port    = 8080
+ecs_desired_count = 2
+
+# Credenciais e configurações de banco de dados
+db_name           = "frauddetection"
+db_username       = "postgres"
+db_password       = "DefinaUmaSenhaSeguraAqui123!"
+rds_multi_az      = true
+
+# Mensageria RabbitMQ
+rabbitmq_username = "fraud_admin"
+rabbitmq_password = "DefinaUmaSenhaForteParaRabbitMQ!"
+
+# Autenticação da API (X-API-KEY)
+api_key           = "chave-secreta-producao-2026"
