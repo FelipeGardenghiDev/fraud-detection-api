@@ -1,4 +1,4 @@
-name: Java CI with Maven
+name: CI Pipeline
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and Test (Java 21)
+    name: Build, Test & Coverage (Java 21)
     runs-on: ubuntu-latest
 
     steps:
@@ -25,5 +25,35 @@ jobs:
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
 
-      - name: Build and execute test suite
+      - name: Build, Test and Verify Coverage (JaCoCo)
         run: ./mvnw clean verify -B
+
+      - name: Upload JaCoCo Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/
+          retention-days: 14
+
+  terraform:
+    name: Terraform Lint & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Initialize Terraform (No Remote Backend)
+        run: terraform -chdir=terraform init -backend=false
+
+      - name: Validate Terraform configuration
+        run: terraform -chdir=terraform validate
