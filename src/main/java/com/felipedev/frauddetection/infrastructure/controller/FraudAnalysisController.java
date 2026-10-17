@@ -2,7 +2,7 @@ package com.felipedev.frauddetection.infrastructure.controller;
 
 import com.felipedev.frauddetection.application.dto.FraudAnalysisResponseDto;
 import com.felipedev.frauddetection.application.dto.TransactionAnalysisRequestDto;
-import com.felipedev.frauddetection.application.service.FraudAnalysisService;
+import com.felipedev.frauddetection.domain.port.in.AnalyzeTransactionUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @Tag(name = "Análises Antifraude", description = "Endpoints para submissão e consulta de análises de risco de transações")
 public class FraudAnalysisController {
 
-    private final FraudAnalysisService service;
+    private final AnalyzeTransactionUseCase service;
 
     @PostMapping
     @Operation(summary = "Submeter transação para avaliação antifraude em tempo real",

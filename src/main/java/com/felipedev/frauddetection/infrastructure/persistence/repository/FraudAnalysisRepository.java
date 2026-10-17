@@ -24,6 +24,10 @@ public interface FraudAnalysisRepository extends JpaRepository<FraudAnalysisEnti
 
     long countByDecision(Decision decision);
 
+    Optional<FraudAnalysisEntity> findFirstByCustomerIdOrderByAnalyzedAtDesc(String customerId);
+
+    List<FraudAnalysisEntity> findTop10ByCustomerIdOrderByAnalyzedAtDesc(String customerId);
+
     @Query("SELECT COALESCE(SUM(f.amount), 0) FROM FraudAnalysisEntity f WHERE f.decision = :decision")
     BigDecimal sumAmountByDecision(@Param("decision") Decision decision);
 }

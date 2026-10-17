@@ -50,6 +50,12 @@ public class TransactionAnalysisRequestDto {
     @Schema(description = "Localização geográfica aproximada", example = "Ribeirão Preto, SP")
     private String location;
 
+    @Schema(description = "Latitude geográfica da transação (para validação de Impossible Travel)", example = "-21.1767")
+    private Double latitude;
+
+    @Schema(description = "Longitude geográfica da transação (para validação de Impossible Travel)", example = "-47.8208")
+    private Double longitude;
+
     @Schema(description = "Horário de ocorrência da transação (ISO-8601). Se nulo, utiliza o horário atual.", example = "2026-09-09T23:45:00")
     private LocalDateTime occurredAt;
 }

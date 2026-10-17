@@ -2,7 +2,7 @@ package com.felipedev.frauddetection.infrastructure.controller;
 
 import com.felipedev.frauddetection.application.dto.BlacklistRequestDto;
 import com.felipedev.frauddetection.application.dto.BlacklistResponseDto;
-import com.felipedev.frauddetection.application.service.BlacklistService;
+import com.felipedev.frauddetection.domain.port.in.ManageBlacklistUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,7 +21,7 @@ import java.util.UUID;
 @Tag(name = "Blacklist Restritiva", description = "Gestão de CPFs, IPs e Dispositivos bloqueados por fraude confirmada")
 public class BlacklistController {
 
-    private final BlacklistService service;
+    private final ManageBlacklistUseCase service;
 
     @PostMapping
     @Operation(summary = "Adicionar um identificador à Blacklist")

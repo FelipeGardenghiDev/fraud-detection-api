@@ -2,6 +2,7 @@ package com.felipedev.frauddetection.application.service;
 
 import com.felipedev.frauddetection.application.dto.MetricsResponseDto;
 import com.felipedev.frauddetection.domain.model.Decision;
+import com.felipedev.frauddetection.domain.port.in.ConsultMetricsUseCase;
 import com.felipedev.frauddetection.infrastructure.persistence.repository.FraudAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,7 +13,7 @@ import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
-public class MetricsService {
+public class MetricsService implements ConsultMetricsUseCase {
 
     private final FraudAnalysisRepository repository;
 

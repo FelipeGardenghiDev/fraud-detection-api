@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: fraud-detection-api
+  threads:
+    virtual:
+      enabled: true
 
   datasource:
     url: jdbc:h2:mem:frauddetectiondb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -28,7 +31,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
@@ -62,3 +65,13 @@ fraud:
       start-hour: 22
       end-hour: 6
       high-amount-threshold: 1000.00
+    geolocation:
+      max-speed-kmh: 800.0
+      min-distance-km: 50.0
+    behavioral:
+      z-score-threshold: 3.0
+      min-history-count: 3
+    smurfing:
+      min-amount: 4500.00
+      max-amount: 4999.99
+      min-recent-txs: 2

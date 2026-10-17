@@ -52,6 +52,10 @@ public class FraudAnalysisEntity {
 
     private String location;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Column(name = "risk_score", nullable = false)
     private int riskScore;
 

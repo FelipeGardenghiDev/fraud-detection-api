@@ -3,167 +3,178 @@
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen?logo=springboot)
 [![CI Pipeline](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml/badge.svg)](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/Tests-32%20Passing%20(100%25)-success?logo=junit5)
-![Coverage](https://img.shields.io/badge/JaCoCo-Automated%20Report-blue?logo=githubactions)
-![Terraform](https://img.shields.io/badge/IaC-Terraform%20AWS-7B42BC?logo=terraform)
+![Tests](https://img.shields.io/badge/Tests-44%20Passing%20(100%25)-success?logo=junit5)
+![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20Ports%20%26%20Adapters-blue)
+![Threads](https://img.shields.io/badge/Concurrency-Virtual%20Threads%20(Loom)-teal)
 ![Pattern](https://img.shields.io/badge/Pattern-Transactional%20Outbox-darkblue)
-![Spring Security](https://img.shields.io/badge/Security-API%20Key%20Auth-red?logo=springsecurity)
+![Observability](https://img.shields.io/badge/Metrics-Micrometer%20%2F%20Prometheus-orange?logo=prometheus)
+![Redis](https://img.shields.io/badge/Redis-Sliding%20Window%20Lua-red?logo=redis)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Event%20Driven-orange?logo=rabbitmq)
-![Redis](https://img.shields.io/badge/Redis-Sliding%20Window%20Cache-red?logo=redis)
-![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker)
-![OpenAPI 3](https://img.shields.io/badge/OpenAPI-Swagger%203-green?logo=swagger)
+![Security](https://img.shields.io/badge/Security-API%20Key%20Auth-red?logo=springsecurity)
+![Terraform](https://img.shields.io/badge/IaC-Terraform%20AWS-7B42BC?logo=terraform)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
-Uma **API corporativa de alta performance** para análise de risco e prevenção a fraudes em transações financeiras (PIX, Cartão de Crédito, Débito e Boletos) em tempo real.
+Uma **plataforma corporativa de alta performance** para análise preditiva de risco e prevenção a fraudes em transações financeiras (PIX, Cartão de Crédito, Débito e Boletos) em tempo real, operando com latência alvo de sub-10ms (P99 < 15ms).
 
-Desenvolvida com **Java 21**, **Spring Boot 3**, **Domain-Driven Design (DDD)**, **Transactional Outbox Pattern** e **Infraestrutura como Código (Terraform na AWS)**, garantindo resiliência em sistemas distribuídos, auditoria estrita, baixa latência e total conformidade com padrões de mercado de Fintechs e Instituições de Pagamento.
+Construída sobre os fundamentos de **Arquitetura Hexagonal (Ports & Adapters)**, **Java 21 LTS**, **Spring Boot 3.4**, **Project Loom (Virtual Threads)**, **Redis ZSET com Scripting Lua Atômico**, **Transactional Outbox Pattern** e **Infraestrutura como Código (Terraform na AWS)**.
 
----
-
-## 🚀 Funcionalidades Principais
-
-- **Motor de Regras Antifraude (Rule Engine Pipeline):**
-  - 🚫 **Blacklist Restritiva:** Bloqueio instantâneo (Score 100) para CPFs, IPs e Device Fingerprints reincidentes em fraudes.
-  - 💸 **High Amount Detection:** Detecção de valores anômalos com pontuações proporcionais à gravidade.
-  - 🌙 **Janela Noturna de Risco:** Regras estritas para transações de alto valor entre 22h e 06h (mitigação de sequestro relâmpago e fraudes no PIX).
-  - ⚡ **Velocity Burst Check:** Detecção de rajadas de tentativas consecutivas com **Redis Sliding Window Cache** e fallback resiliente para banco relacional.
-- **Resiliência Distribuída com Transactional Outbox Pattern:**
-  - Elimina a perda de eventos em falhas de rede do broker de mensageria: a análise e o evento de alerta são persistidos na **mesma transação atômica ACID**.
-  - Worker agendado (`OutboxPublisherJob`) realiza a entrega com retentativas controladas e transição para estado de falha/Dead-Letter (`FAILED`).
-- **Domain-Driven Design (DDD) & Value Objects:**
-  - `Cpf`: Validação rigorosa pelo algoritmo oficial Módulo 11 da Receita Federal e mascaramento LGPD (`***.456.789-**`).
-  - `RiskScore`: Encapsulamento dos limites de pontuação (0 a 100) e cálculo da decisão correspondente.
-  - `TransactionAmount`: Invariantes monetárias e operações de comparação financeira precisas.
-  - `RuleSpecification`: Implementação do Specification Pattern permitindo composição lógica (`and`, `or`, `not`) de predicados antifraude.
-- **Idempotência de Transações:**
-  - Detecção de requisições duplicadas via `transactionId` com retorno imediato do veredito sem reprocessamento desnecessário (`idempotencyHit: true`).
-- **Segurança Inter-Microsserviços:** Autenticação por cabeçalho `X-API-KEY` com Spring Security e suporte nativo no Swagger UI.
-- **Auditoria Completa & Métricas:** Histórico detalhado de cada regra avaliada e indicadores consolidados de capital financeiro protegido.
-- **Infraestrutura como Código (Terraform):** Especificação completa de nuvem na AWS com VPC, ECS Fargate, RDS PostgreSQL Multi-AZ, ElastiCache Redis e Amazon MQ RabbitMQ.
+> 📖 **Para decisões de arquitetura e 6 ADRs formais, consulte o [Architecture Document](docs/ARCHITECTURE.md).**
 
 ---
 
-## 📐 Arquitetura do Sistema
+## 🎯 Destaques Arquiteturais de Nível Staff/Senior
+
+1. **Arquitetura Hexagonal Estrita (Ports & Adapters):**
+   - O núcleo do domínio (`domain.core`, `domain.rule`, `domain.model`) é 100% isolado de qualquer dependência de Spring, JPA, Redis ou RabbitMQ.
+   - Comunicação orquestrada exclusivamente por **Inbound Ports** (`AnalyzeTransactionUseCase`, `ManageBlacklistUseCase`, `ConsultMetricsUseCase`) e **Outbound Ports** (`FraudAnalysisRepositoryPort`, `BlacklistPort`, `VelocityTrackerPort`, `FraudEventPublisherPort`).
+2. **Esteira de Regras Antifraude Determinística (7 Regras de Produção):**
+   - Regras plugáveis via pipeline ordenado por prioridade (`@Order`), desacopladas e extensíveis.
+3. **Janela Deslizante Atômica com Redis ZSET + Scripting Lua:**
+   - Elimina vulnerabilidades de rajada de borda (*Border Burst*) e race conditions sem travas distribuídas lentas.
+4. **Alta Concorrência com Java 21 Virtual Threads:**
+   - I/O não-bloqueante para milhares de conexões concorrentes com overhead mínimo de memória por requisição (`spring.threads.virtual.enabled: true`).
+5. **Resiliência Dual-Write com Transactional Outbox Pattern:**
+   - Garante consistência atômica estrita (ACID) entre a análise persistida e o evento de alerta, imune a partições transitórias do RabbitMQ.
+6. **Telemetria de Negócio & Observabilidade Enterprise:**
+   - Exportação de métricas nativas para Prometheus (`/actuator/prometheus`) via Micrometer, incluindo latência, taxa de conversão/bloqueio e capital financeiro protegido.
+
+---
+
+## 🧠 Esteira de Regras do Motor Antifraude (Rule Engine Pipeline)
+
+O motor avalia a transação de forma sequencial e determinística através de 7 regras especializadas:
+
+| Ordem | Regra | Nome Interno | Descrição e Critério de Decisão | Score |
+| :---: | :--- | :--- | :--- | :---: |
+| **1** | **Blacklist Restritiva** | `BLACKLIST_CHECK` | Intercepta imediatamente CPFs, IPs de rede ou Device Fingerprints com histórico de fraude confirmada. | **+100** |
+| **2** | **Detecção de Valor Elevado** | `HIGH_AMOUNT_DETECTION` | Avalia valores desproporcionais: Atenção para $\ge \text{R\$} 5.000$ (+30 pts) e Crítico para $\ge \text{R\$} 20.000$ (+60 pts). | **+30 / +60** |
+| **3** | **Burst de Velocidade** | `VELOCITY_BURST_CHECK` | Rastreia contagem em janela deslizante (ex: $>3$ transações em 5 min) via Redis Sorted Set. | **+40** |
+| **4** | **Janela Noturna de Risco** | `NIGHT_WINDOW_RESTRICTION` | Aplica teto restritivo de R$ 1.000 entre 22h e 06h (mitigação contra coação e sequestro-relâmpago no PIX). | **+25** |
+| **5** | **Deslocamento Impossível (Haversine)** | `GEOLOCATION_IMPOSSIBLE_TRAVEL` | Calcula velocidade geodésica entre transações consecutivas. Dispara se $v > 800\text{ km/h}$ para $d \ge 50\text{ km}$. | **+60** |
+| **6** | **Anomalia Comportamental (Z-Score)** | `BEHAVIORAL_STATISTICAL_ANOMALY` | Modela o perfil de consumo individual do cliente. Dispara se $Z = \frac{x - \mu}{\sigma} \ge 3.0$ (3 desvios padrão acima da média). | **+40** |
+| **7** | **Fracionamento (Smurfing / Structuring)** | `SMURFING_STRUCTURING_DETECTION` | Detecta tentativas deliberadas de burlar o teto regulatório de R$ 5.000 (operações entre R$ 4.500 e R$ 4.999,99 em rajada). | **+45** |
+
+### Matriz de Decisão por Risk Score:
+- **0 a 39 pontos:** `APPROVED` 🟢 (Transação legítima, processada normalmente)
+- **40 a 79 pontos:** `SUSPICIOUS` 🟡 (Atenção / step-up de autenticação MFA ou fila de auditoria manual)
+- **80 a 100 pontos:** `BLOCKED` 🔴 (Transação bloqueada sumariamente por alto risco de fraude)
+
+---
+
+## 🏛️ Diagrama Arquitetural de Alto Nível
 
 ```mermaid
-flowchart TD
-    A[Transação Recebida /api/v1/fraud-analyses] --> IDEM{Transação já analisada? Idempotência}
-    IDEM -->|Sim| RET[Retorna Análise em Cache / Idempotency Hit]
-    IDEM -->|Não| B[Enriquecimento de Contexto Redis + Blacklist]
-    
-    B --> C[Esteira Desacoplada: FraudRuleEngine]
-    
-    subgraph Rule Engine Pipeline
-        C --> R1[1. Blacklist Check CPF/IP/Device]
-        R1 --> R2[2. High Amount Detection]
-        R2 --> R3[3. Night Window Restriction 22h-06h]
-        R3 --> R4[4. Velocity Burst Check via Redis]
+graph TD
+    subgraph Driving_Layer["Adapters Primários (Inbound)"]
+        CLIENT["Payment Gateway / Frontend"]
+        REST["FraudAnalysisController<br/>(/api/v1/fraud-analyses)"]
+        SEC["ApiKeyAuthFilter<br/>(Constant-Time Byte Compare)"]
     end
-    
-    R4 --> D[Agregação e Cálculo do RiskScore VO]
-    D --> E{Decisão Final}
-    
-    E -->|Score 0-39| F[APPROVED]
-    E -->|Score 40-79| G[SUSPICIOUS]
-    E -->|Score 80-100| H[BLOCKED]
-    
-    subgraph ACID Transaction
-        F --> DB[(Persistência: fraud_analyses)]
-        G --> DB
-        H --> DB
-        G -.->|Enfileira Alerta| OUTBOX[(Tabela: outbox_events)]
-        H -.->|Enfileira Alerta| OUTBOX
+
+    subgraph Port_In["Inbound Ports (Use Cases)"]
+        UC["AnalyzeTransactionUseCase"]
     end
-    
-    subgraph Transactional Outbox Poller
-        OUTBOX --> JOB[OutboxPublisherJob Poller]
-        JOB -->|Publicação Confiável At-Least-Once| RMQ[📨 RabbitMQ Exchange fraud.exchange]
+
+    subgraph Core_Engine["Core do Domínio (Hexágono Puro)"]
+        RE["FraudRuleEngine"]
+        CHAIN["Pipeline de 7 Regras<br/>(Blacklist ➔ HighAmount ➔ Velocity ➔ NightWindow<br/>➔ Geolocation ➔ Behavioral Z-Score ➔ Smurfing)"]
+        VO["Value Objects Ricos:<br/>RiskScore (0-100), Decision, CPF LGPD, Coordinates"]
     end
+
+    subgraph Port_Out["Outbound Ports"]
+        P_REPO["FraudAnalysisRepositoryPort"]
+        P_BLACK["BlacklistPort"]
+        P_VEL["VelocityTrackerPort"]
+        P_PUB["FraudEventPublisherPort"]
+    end
+
+    subgraph Driven_Layer["Adapters Secundários (Outbound)"]
+        REDIS[("Redis ZSET Sliding Window<br/>Lua Scripting")]
+        DB[("PostgreSQL / H2<br/>JPA Repository")]
+        OUTBOX[("Transactional Outbox")]
+        RMQ["RabbitMQ Topic Exchange<br/>(fraud.exchange)"]
+        PROM["Micrometer / Prometheus<br/>(/actuator/prometheus)"]
+    end
+
+    CLIENT -->|POST + X-API-KEY| SEC
+    SEC --> REST
+    REST --> UC
+    UC --> RE
+    RE --> CHAIN
+    CHAIN --> VO
     
-    DB --> J[Resposta JSON com Breakdown das Regras]
+    UC --> P_REPO
+    UC --> P_BLACK
+    UC --> P_VEL
+    UC --> P_PUB
+
+    P_VEL -.-> REDIS
+    P_REPO -.-> DB
+    P_BLACK -.-> DB
+    P_REPO -.-> OUTBOX
+    OUTBOX --> RMQ
+    UC -.-> PROM
 ```
+
+---
+
+## 📊 Telemetria & Métricas de Negócio (Prometheus / Micrometer)
+
+O microsserviço expõe indicadores operacionais e financeiros em `/actuator/prometheus`:
+
+- `fraud.analysis.duration` (**Timer**): Latência da esteira em milissegundos, com tags de veredito (`decision=APPROVED|SUSPICIOUS|BLOCKED`).
+- `fraud.decisions.total` (**Counter**): Totalizador de vereditos emitidos.
+- `fraud.capital.protected.amount` (**Counter**): Volume monetário (BRL) protegido contra fraudes por bloqueios.
+- `fraud.idempotency.hits` (**Counter**): Total de requisições duplicadas servidas diretamente em cache em $O(1)$.
 
 ---
 
 ## ☁️ Infraestrutura como Código (Terraform na AWS)
 
-O projeto conta com uma especificação completa de infraestrutura corporativa na pasta [`terraform/`](./terraform), cobrindo:
+O projeto possui especificação de infraestrutura de nuvem pronta para produção na pasta [`terraform/`](./terraform):
+- **VPC & Rede Segura:** Subnets públicas exclusivas para Application Load Balancer e subnets privadas isoladas para containers e dados.
+- **AWS ECS Fargate:** Orquestração de containers serverless com auto-scaling configurado por uso de CPU e memória.
+- **Amazon RDS PostgreSQL Multi-AZ:** Banco relacional com alta disponibilidade, backups automáticos e criptografia KMS em repouso.
+- **Amazon ElastiCache Redis:** Cache em memória gerenciado com failover automático para a janela deslizante.
+- **Amazon MQ (RabbitMQ):** Cluster de mensageria gerenciado na nuvem.
 
-* **Rede Isolada (VPC):** Subnets públicas (apenas para o ALB) e subnets privadas (para containers e bancos).
-* **AWS ECS Fargate:** Cluster serverless para a aplicação Spring Boot com auto-scaling e health checks no `/actuator/health`.
-* **Amazon RDS PostgreSQL:** Banco de dados relacional Multi-AZ em subnets privadas com criptografia em repouso.
-* **Amazon ElastiCache Redis:** Cluster gerenciado para suporte de alto throughput na janela de velocidade (*Velocity Tracker*).
-* **Amazon MQ RabbitMQ:** Broker de mensageria gerenciado na nuvem para eventos de alerta.
-* **Segurança Encadeada:** Security Groups que permitem tráfego apenas entre camadas adjacentes (ALB ➔ ECS ➔ Bancos/Filas).
-
-> 📖 **Consulte a documentação completa da infraestrutura em [`terraform/README.md`](./terraform/README.md).**
+> 📖 **Consulte a documentação completa de infraestrutura em [`terraform/README.md`](./terraform/README.md).**
 
 ---
 
-## 🛠️ Stack Tecnológica
+## ⚡ Exemplo Prático de Requisição e Resposta
 
-| Componente | Tecnologia | Papel no Sistema |
-| :--- | :--- | :--- |
-| **Linguagem** | Java 21 LTS | Runtime moderno com Records, Pattern Matching e Virtual Threads |
-| **Framework** | Spring Boot 3.4.3 | Núcleo do microsserviço (Data JPA, Security, Actuator) |
-| **Padrões de Design** | DDD + Transactional Outbox + Specification | Resiliência distribuída, desacoplamento e modelo rico |
-| **Infraestrutura** | Terraform (IaC) | Provisionamento automatizado e reproduzível na AWS |
-| **Mensageria** | RabbitMQ (Spring AMQP) | Publicação assíncrona orientada a eventos (`FraudAlertEvent`) |
-| **Cache & In-Memory** | Redis 7 | Janela de contagem de velocidade deslizante (*Sliding Window*) |
-| **Persistência** | PostgreSQL 16 & H2 | H2 em memória para testes velozes; PostgreSQL para produção |
-| **Cobertura de Testes**| JaCoCo + JUnit 5 + Mockito | **32 testes automatizados (100% passing)** com relatório de cobertura |
-| **Documentação** | OpenAPI 3 / Swagger | Interface interativa com suporte a autenticação `X-API-KEY` |
-| **CI/CD** | GitHub Actions | Validação de build Maven, execução de testes e lint de Terraform |
-
----
-
-## 📋 Endpoints Principais
-
-### 1. Análises Antifraude (`/api/v1/fraud-analyses`)
-- `POST /api/v1/fraud-analyses`: Submete uma transação para avaliação em tempo real.
-- `GET /api/v1/fraud-analyses/{id}`: Consulta os detalhes e o detalhamento das regras de uma análise.
-- `GET /api/v1/fraud-analyses/customer/{customerId}`: Histórico de análises de um cliente.
-
-### 2. Blacklist Restritiva (`/api/v1/blacklist`)
-- `POST /api/v1/blacklist`: Adiciona CPF, IP ou Device Fingerprint à lista de bloqueio.
-- `GET /api/v1/blacklist`: Lista os registros ativos da blacklist.
-- `DELETE /api/v1/blacklist/{id}`: Desativa um registro.
-
-### 3. Métricas (`/api/v1/metrics`)
-- `GET /api/v1/metrics/overview`: Indicadores consolidados de transações aprovadas, bloqueadas e capital protegido.
-
----
-
-## ⚡ Exemplo Prático de Uso (cURL & Payloads)
-
-### Requisição de Análise de Risco:
+### Requisição: Análise Completa com Geolocalização
 ```bash
 curl -X POST "http://localhost:8080/api/v1/fraud-analyses" \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: fraud-secret-key-2026" \
   -d '{
-    "transactionId": "TX-2026-987654",
-    "customerId": "CUST-9921",
+    "transactionId": "TX-2026-BRA-88912",
+    "customerId": "CUST-BR-4091",
     "customerCpf": "52998224725",
-    "amount": 25000.00,
+    "amount": 4850.00,
     "paymentMethod": "PIX",
     "ipAddress": "189.120.45.12",
-    "deviceFingerprint": "dev_fp_abc987xyz",
-    "location": "São Paulo, SP"
+    "deviceFingerprint": "fp-mac-992a10",
+    "location": "São Paulo, SP",
+    "latitude": -23.5505,
+    "longitude": -46.6333,
+    "occurredAt": "2026-10-17T01:45:00"
   }'
 ```
 
-### Resposta JSON (com Breakdown de Regras & Auditoria):
+### Resposta: Diagnóstico Auditável com Breakdown de Regras
 ```json
 {
-  "analysisId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "transactionId": "TX-2026-987654",
-  "customerId": "CUST-9921",
-  "riskScore": 95,
+  "analysisId": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "transactionId": "TX-2026-BRA-88912",
+  "customerId": "CUST-BR-4091",
+  "riskScore": 85,
   "decision": "BLOCKED",
   "decisionDescription": "Transação bloqueada por alto risco de fraude.",
   "idempotencyHit": false,
-  "executedRules": [
+  "ruleBreakdown": [
     {
       "ruleName": "BLACKLIST_CHECK",
       "triggered": false,
@@ -172,53 +183,85 @@ curl -X POST "http://localhost:8080/api/v1/fraud-analyses" \
     },
     {
       "ruleName": "HIGH_AMOUNT_DETECTION",
-      "triggered": true,
-      "scoreContribution": 60,
-      "reason": "Valor da transação (R$ 25000.00) atinge nível crítico (>= R$ 20000.00)."
-    },
-    {
-      "ruleName": "NIGHT_WINDOW_RESTRICTION",
-      "triggered": true,
-      "scoreContribution": 35,
-      "reason": "Transação noturna de valor elevado (R$ 25000.00 > limite de R$ 1000.00)."
-    },
-    {
-      "ruleName": "VELOCITY_BURST_CHECK",
       "triggered": false,
       "scoreContribution": 0,
       "reason": "Regra não violada."
+    },
+    {
+      "ruleName": "VELOCITY_BURST_CHECK",
+      "triggered": true,
+      "scoreContribution": 40,
+      "reason": "Alta velocidade transacional: 4 transações em menos de 5 minutos."
+    },
+    {
+      "ruleName": "NIGHT_WINDOW_RESTRICTION",
+      "triggered": false,
+      "scoreContribution": 0,
+      "reason": "Regra não violada."
+    },
+    {
+      "ruleName": "GEOLOCATION_IMPOSSIBLE_TRAVEL",
+      "triggered": false,
+      "scoreContribution": 0,
+      "reason": "Deslocamento plausível: 12.4 km em 0.5 h (25 km/h)."
+    },
+    {
+      "ruleName": "BEHAVIORAL_STATISTICAL_ANOMALY",
+      "triggered": false,
+      "scoreContribution": 0,
+      "reason": "Z-Score aceitável (1.42 < 3.00 limiar)."
+    },
+    {
+      "ruleName": "SMURFING_STRUCTURING_DETECTION",
+      "triggered": true,
+      "scoreContribution": 45,
+      "reason": "Padrão suspeito de fracionamento (Smurfing/Structuring): valor R$ 4850.00 imediatamente abaixo do teto de R$ 5.000,00 com 4 transações recentes na janela."
     }
   ],
-  "analyzedAt": "2026-09-23T00:15:00"
+  "analyzedAt": "2026-10-17T01:45:00"
 }
 ```
 
 ---
 
-## 💻 Como Executar o Projeto Localmente ($0 de Custo)
+## 🛠️ Stack Tecnológica
+
+| Componente | Tecnologia | Papel no Sistema |
+| :--- | :--- | :--- |
+| **Linguagem** | Java 21 LTS | Records, Pattern Matching e Virtual Threads |
+| **Framework** | Spring Boot 3.4.3 | Núcleo do microsserviço (Data JPA, Security, Actuator, Web) |
+| **Padrões de Arquitetura** | Hexagonal (Ports & Adapters) + Outbox + Specification | Desacoplamento e testabilidade pura |
+| **I/O & Concorrência** | Project Loom (Virtual Threads) | Despacho não-bloqueante para alto throughput |
+| **Cache & Sliding Window** | Redis 7 + Lua Scripting | Janela deslizante atômica com ZSET |
+| **Mensageria Assíncrona** | RabbitMQ 3.13 | Publicação orientada a eventos (`FraudAlertEvent`) |
+| **Persistência** | PostgreSQL 16 & H2 | H2 para suíte veloz em memória; PostgreSQL para produção |
+| **Observabilidade** | Micrometer + Prometheus | Exportação de métricas e latência P99 |
+| **Infraestrutura (IaC)** | Terraform na AWS | VPC, ECS Fargate, RDS Multi-AZ, ElastiCache, Amazon MQ |
+| **Qualidade & Testes** | JUnit 5 + Mockito + JaCoCo | **44 testes automatizados (100% passing)** |
+| **Documentação** | OpenAPI 3 / Swagger UI | Interface interativa com suporte a `X-API-KEY` |
+
+---
+
+## 💻 Execução Local ($0 de Custo)
 
 ### Pré-requisitos
-- JDK 21 ou superior instalado
+- OpenJDK 21 ou superior
 - Git
 
-### Opção 1: Executando com o Maven Wrapper (Em memória H2)
+### 1. Executando Localmente (Perfil Padrão com Banco em Memória H2)
 ```bash
-# Clone o repositório
 git clone https://github.com/FelipeGardenghiDev/fraud-detection-api.git
 cd fraud-detection-api
-
-# Execute com o perfil de desenvolvimento
 ./mvnw spring-boot:run
 ```
+Swagger UI interativo: `http://localhost:8080/swagger-ui.html`
 
-Acesse o Swagger UI em: `http://localhost:8080/swagger-ui.html`
-
-### Opção 2: Executando com Docker Compose (PostgreSQL + Redis + RabbitMQ)
+### 2. Executando com Docker Compose Completo (PostgreSQL + Redis + RabbitMQ)
 ```bash
 docker compose up -d
 ```
 
-### Opção 3: Executar a Suíte de Testes e Gerar Relatório JaCoCo
+### 3. Executando a Suíte de Testes Automatizada (44 Testes)
 ```bash
 ./mvnw clean test
 ```

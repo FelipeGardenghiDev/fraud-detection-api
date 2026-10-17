@@ -3,6 +3,7 @@ package com.felipedev.frauddetection.application.service;
 import com.felipedev.frauddetection.application.dto.BlacklistRequestDto;
 import com.felipedev.frauddetection.application.dto.BlacklistResponseDto;
 import com.felipedev.frauddetection.domain.model.BlacklistType;
+import com.felipedev.frauddetection.domain.port.in.ManageBlacklistUseCase;
 import com.felipedev.frauddetection.infrastructure.exception.BusinessException;
 import com.felipedev.frauddetection.infrastructure.exception.ResourceNotFoundException;
 import com.felipedev.frauddetection.infrastructure.persistence.entity.BlacklistEntity;
@@ -19,7 +20,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class BlacklistService {
+public class BlacklistService implements ManageBlacklistUseCase {
 
     private final BlacklistRepository repository;
 
@@ -58,6 +59,25 @@ public class BlacklistService {
         entity.setActive(false);
         repository.save(entity);
         log.info("Registro da Blacklist desativado: {}", id);
+    }
+
+    @Override
+    @Transactional
+    public void removeFromBlacklist(UUID id) {
+        deactivate(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BlacklistResponseDto> getAllActive() {
+        return listActive();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isBlacklisted(BlacklistType type, String value) {
+        if (value == null) return false;
+        return repository.existsByTypeAndValueAndActiveTrue(type, value);
     }
 
     private BlacklistResponseDto toDto(BlacklistEntity entity) {
