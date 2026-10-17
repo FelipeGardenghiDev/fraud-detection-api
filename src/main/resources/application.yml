@@ -18,20 +18,36 @@ spring:
       enabled: true
       path: /h2-console
 
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         format_sql: true
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      redisVelocityTracker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50.0
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,circuitbreakers
   endpoint:
     health:
       show-details: always

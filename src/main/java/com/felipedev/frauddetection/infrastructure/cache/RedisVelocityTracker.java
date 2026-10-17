@@ -2,6 +2,7 @@ package com.felipedev.frauddetection.infrastructure.cache;
 
 import com.felipedev.frauddetection.domain.port.out.VelocityTrackerPort;
 import com.felipedev.frauddetection.infrastructure.persistence.repository.FraudAnalysisRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,8 +16,9 @@ import java.util.Collections;
 import java.util.UUID;
 
 /**
- * Rastreador de velocidade transacional com Redis Sliding Window via Script Lua Atômico.
- * Implementa {@link VelocityTrackerPort} com fallback resiliente para banco relacional.
+ * Rastreador de velocidade transacional com Redis Sliding Window via Script Lua Atômico
+ * e tolerância a falhas via Resilience4j Circuit Breaker.
+ * Implementa {@link VelocityTrackerPort} com fallback automático para banco relacional.
  */
 @Slf4j
 @Service
@@ -63,6 +65,7 @@ public class RedisVelocityTracker implements VelocityTrackerPort {
     }
 
     @Override
+    @CircuitBreaker(name = "redisVelocityTracker", fallbackMethod = "countFromDatabaseFallback")
     public int getRecentTransactionCount(String customerId, int windowMinutes) {
         if (!redisEnabled || redisTemplate == null) {
             return countFromDatabase(customerId, windowMinutes);
@@ -87,12 +90,18 @@ public class RedisVelocityTracker implements VelocityTrackerPort {
 
             return countFromDatabase(customerId, windowMinutes);
         } catch (Exception ex) {
-            log.debug("Redis não acessível. Utilizando fallback resiliente para banco relacional: {}", ex.getMessage());
+            log.debug("Redis indisponível. Utilizando fallback resiliente para banco relacional: {}", ex.getMessage());
             return countFromDatabase(customerId, windowMinutes);
         }
     }
 
+    public int countFromDatabaseFallback(String customerId, int windowMinutes, Throwable ex) {
+        log.warn("Resilience4j Circuit Breaker ativo para Redis. Fallback executado para PostgreSQL: {}", ex.getMessage());
+        return countFromDatabase(customerId, windowMinutes);
+    }
+
     @Override
+    @CircuitBreaker(name = "redisVelocityTracker", fallbackMethod = "recordTransactionFallback")
     public void recordTransaction(String customerId, String transactionId, int windowMinutes) {
         if (!redisEnabled || redisTemplate == null) {
             return;
@@ -115,6 +124,10 @@ public class RedisVelocityTracker implements VelocityTrackerPort {
         } catch (Exception ex) {
             log.debug("Falha ao registrar transação no Redis para {}: {}", customerId, ex.getMessage());
         }
+    }
+
+    public void recordTransactionFallback(String customerId, String transactionId, int windowMinutes, Throwable ex) {
+        log.warn("Resilience4j Circuit Breaker aberto na escrita de transação Redis para cliente {}: {}", customerId, ex.getMessage());
     }
 
     /**

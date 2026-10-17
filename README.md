@@ -3,22 +3,23 @@
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen?logo=springboot)
 [![CI Pipeline](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml/badge.svg)](https://github.com/FelipeGardenghiDev/fraud-detection-api/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/Tests-44%20Passing%20(100%25)-success?logo=junit5)
+![Tests](https://img.shields.io/badge/Tests-46%2B%20Passing%20(100%25)-success?logo=junit5)
 ![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20Ports%20%26%20Adapters-blue)
 ![Threads](https://img.shields.io/badge/Concurrency-Virtual%20Threads%20(Loom)-teal)
+![Resilience](https://img.shields.io/badge/Resilience-Resilience4j%20Circuit%20Breaker-black)
+![Flyway](https://img.shields.io/badge/Migrations-Flyway%20SQL-CC0200?logo=flyway)
 ![Pattern](https://img.shields.io/badge/Pattern-Transactional%20Outbox-darkblue)
 ![Observability](https://img.shields.io/badge/Metrics-Micrometer%20%2F%20Prometheus-orange?logo=prometheus)
 ![Redis](https://img.shields.io/badge/Redis-Sliding%20Window%20Lua-red?logo=redis)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Event%20Driven-orange?logo=rabbitmq)
-![Security](https://img.shields.io/badge/Security-API%20Key%20Auth-red?logo=springsecurity)
+![Testing](https://img.shields.io/badge/Integration-Testcontainers%20(Docker)-175a96?logo=docker)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform%20AWS-7B42BC?logo=terraform)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
 Uma **plataforma corporativa de alta performance** para análise preditiva de risco e prevenção a fraudes em transações financeiras (PIX, Cartão de Crédito, Débito e Boletos) em tempo real, operando com latência alvo de sub-10ms (P99 < 15ms).
 
-Construída sobre os fundamentos de **Arquitetura Hexagonal (Ports & Adapters)**, **Java 21 LTS**, **Spring Boot 3.4**, **Project Loom (Virtual Threads)**, **Redis ZSET com Scripting Lua Atômico**, **Transactional Outbox Pattern** e **Infraestrutura como Código (Terraform na AWS)**.
+Construída sobre os fundamentos de **Arquitetura Hexagonal (Ports & Adapters)**, **Java 21 LTS**, **Spring Boot 3.4**, **Project Loom (Virtual Threads)**, **Resilience4j Circuit Breaker**, **Flyway Database Migrations**, **Redis ZSET com Scripting Lua Atômico**, **Transactional Outbox Pattern**, **Testcontainers** e **Infraestrutura como Código (Terraform na AWS)**.
 
-> 📖 **Para decisões de arquitetura e 6 ADRs formais, consulte o [Architecture Document](docs/ARCHITECTURE.md).**
+> 📖 **Para decisões de arquitetura e 9 ADRs formais, consulte o [Architecture Document](docs/ARCHITECTURE.md).**
 
 ---
 
@@ -31,12 +32,18 @@ Construída sobre os fundamentos de **Arquitetura Hexagonal (Ports & Adapters)**
    - Regras plugáveis via pipeline ordenado por prioridade (`@Order`), desacopladas e extensíveis.
 3. **Janela Deslizante Atômica com Redis ZSET + Scripting Lua:**
    - Elimina vulnerabilidades de rajada de borda (*Border Burst*) e race conditions sem travas distribuídas lentas.
-4. **Alta Concorrência com Java 21 Virtual Threads:**
+4. **Tolerância a Falhas com Resilience4j Circuit Breaker:**
+   - Protege o cluster de cache: abre o circuito sob degradação e executa chaveamento instantâneo (0ms overhead) para fallback no PostgreSQL.
+5. **Versionamento de Banco com Flyway Migrations:**
+   - Substitui `ddl-auto: update` por scripts SQL determinísticos versionados (`V1__initial_schema.sql`) com `ddl-auto: validate`.
+6. **Alta Concorrência com Java 21 Virtual Threads:**
    - I/O não-bloqueante para milhares de conexões concorrentes com overhead mínimo de memória por requisição (`spring.threads.virtual.enabled: true`).
-5. **Resiliência Dual-Write com Transactional Outbox Pattern:**
+7. **Resiliência Dual-Write com Transactional Outbox Pattern:**
    - Garante consistência atômica estrita (ACID) entre a análise persistida e o evento de alerta, imune a partições transitórias do RabbitMQ.
-6. **Telemetria de Negócio & Observabilidade Enterprise:**
-   - Exportação de métricas nativas para Prometheus (`/actuator/prometheus`) via Micrometer, incluindo latência, taxa de conversão/bloqueio e capital financeiro protegido.
+8. **Testes de Integração com Testcontainers (Docker):**
+   - Validação com imagens reais de PostgreSQL no CI/CD com fallback inteligente (`disabledWithoutDocker = true`).
+9. **Telemetria de Negócio & Observabilidade Enterprise:**
+   - Exportação de métricas nativas para Prometheus (`/actuator/prometheus`) via Micrometer e diagnóstico customizado de saúde da esteira (`FraudEngineHealthIndicator`).
 
 ---
 
@@ -232,12 +239,14 @@ curl -X POST "http://localhost:8080/api/v1/fraud-analyses" \
 | **Framework** | Spring Boot 3.4.3 | Núcleo do microsserviço (Data JPA, Security, Actuator, Web) |
 | **Padrões de Arquitetura** | Hexagonal (Ports & Adapters) + Outbox + Specification | Desacoplamento e testabilidade pura |
 | **I/O & Concorrência** | Project Loom (Virtual Threads) | Despacho não-bloqueante para alto throughput |
+| **Resiliência & Circuit Breaker** | Resilience4j 2.2 | Proteção de falhas e fallback automático para Redis |
+| **Migrações de Banco** | Flyway 10 | Versionamento estrito e determinístico de schema SQL |
 | **Cache & Sliding Window** | Redis 7 + Lua Scripting | Janela deslizante atômica com ZSET |
 | **Mensageria Assíncrona** | RabbitMQ 3.13 | Publicação orientada a eventos (`FraudAlertEvent`) |
 | **Persistência** | PostgreSQL 16 & H2 | H2 para suíte veloz em memória; PostgreSQL para produção |
-| **Observabilidade** | Micrometer + Prometheus | Exportação de métricas e latência P99 |
+| **Observabilidade & Health** | Micrometer + Prometheus + Actuator | Exportação de métricas, P99 e probes de saúde |
 | **Infraestrutura (IaC)** | Terraform na AWS | VPC, ECS Fargate, RDS Multi-AZ, ElastiCache, Amazon MQ |
-| **Qualidade & Testes** | JUnit 5 + Mockito + JaCoCo | **44 testes automatizados (100% passing)** |
+| **Qualidade & Testes** | JUnit 5 + Mockito + JaCoCo + Testcontainers | **46+ testes automatizados (100% passing)** com paridade de produção |
 | **Documentação** | OpenAPI 3 / Swagger UI | Interface interativa com suporte a `X-API-KEY` |
 
 ---

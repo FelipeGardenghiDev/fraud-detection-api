@@ -268,18 +268,49 @@ gantt
 
 ---
 
+### ADR-007: Versionamento de Esquema com Flyway Migrations vs Hibernate DDL Auto
+- **Status**: Aceito e Implementado (`db/migration/V1__initial_schema.sql`).
+- **Contexto**: O gerenciamento implícito de esquemas pelo Hibernate (`ddl-auto: update`) em ambientes de missão crítica é propenso a alterações não auditadas, falhas silenciosas de schema e bloqueios de tabela (locks DDL exclusivos) em deploys concorrentes.
+- **Decisão**: Adotar o Flyway para versionamento estrito e imutável de migrações SQL (`V{N}__{description}.sql`) e configurar `spring.jpa.hibernate.ddl-auto: validate`, garantindo validação bidirecional entre o modelo de entidades JPA e o schema relacional real.
+- **Tradeoffs**:
+  - *Positivo*: Reprodutibilidade determinística em qualquer ambiente (dev, homologação, prod); suporte nativo a pipelines de migração CI/CD.
+  - *Negativo*: Requer escrita manual e cuidadosa de scripts SQL com compatibilidade ANSI.
+
+---
+
+### ADR-008: Tolerância a Falhas e Circuit Breaker com Resilience4j no Cache de Velocidade
+- **Status**: Aceito e Implementado (`@CircuitBreaker(name = "redisVelocityTracker")`).
+- **Contexto**: Caso o cluster Redis sofra degradação de performance ou partição de rede temporária sob volumetria intensa, as threads de execução do motor antifraude poderiam acumular tempo de espera em socket timeouts, degradando o SLA da API inteira.
+- **Decisão**: Envolver as chamadas do `RedisVelocityTracker` com o Circuit Breaker do Resilience4j com janela deslizante de 10 chamadas e limiar de falha de 50%. Caso aberto, o circuito chaveia instantaneamente (0ms overhead) para fallback no PostgreSQL relacional sem sobrecarregar a rede, testando a recuperação em estado `HALF_OPEN`.
+- **Tradeoffs**:
+  - *Positivo*: Evita falhas em cascata (*cascading failures*) e saturação de pools de threads sob degradação externa.
+  - *Negativo*: Adiciona camada de AOP (Aspect-Oriented Programming) no runtime.
+
+---
+
+### ADR-009: Testes de Integração com Paridade de Produção via Testcontainers
+- **Status**: Aceito e Implementado (`FraudAnalysisPostgresIntegrationTest`).
+- **Contexto**: Bancos em memória (H2) possuem diferenças sutis de concorrência, tipos de dados e funções SQL nativas em relação ao PostgreSQL real utilizado em produção.
+- **Decisão**: Utilizar o framework Testcontainers (`@Testcontainers`) com imagens Docker reais de `postgres:16-alpine`, assegurando validação idêntica à de produção no CI/CD com suporte gracioso a fallback local (`disabledWithoutDocker = true`).
+- **Tradeoffs**:
+  - *Positivo*: Elimina a classe de erros "funciona em dev/H2 mas quebra no PostgreSQL de produção".
+  - *Negativo*: Requer disponibilidade do daemon Docker nos runners do CI/CD.
+
+---
+
 ## 5. Matriz de Resiliência & Degradação Graciosa
 
 | Componente | Modo de Falha | Estratégia de Mitigação | Comportamento do Sistema |
 | :--- | :--- | :--- | :--- |
-| **Redis** | Timeout / Crash | Fallback transparente em `RedisVelocityTracker` | Realiza query de agregação indexada no PostgreSQL (`countByCustomerIdAndAnalyzedAtAfter`) |
-| **RabbitMQ** | Broker Down / Partição | Gravação em tabela `outbox_events` (ACID) | A transação do cliente é aprovada/reprovada normalmente; alerta é despachado quando o broker restabelecer |
+| **Redis** | Timeout / Crash | **Resilience4j Circuit Breaker** + Fallback | Abre o circuito (`OPEN`) e redireciona direto para consulta indexada no PostgreSQL sem aguardar timeouts de rede |
+| **RabbitMQ** | Broker Down / Partição | **Transactional Outbox Pattern** (ACID) | A transação do cliente é aprovada/reprovada normalmente; alerta é enfileirado no banco e despachado quando o broker restabelecer |
 | **Banco Relacional** | Deadlock / Contenção | Idempotência atômica e índices cobrindo `transaction_id` e `customer_id` | Transação abortada com rollback limpo e resposta padronizada RFC 7807 |
+| **Schema Drift** | Divergência JPA x DB | **Flyway Migrations** + `ddl-auto: validate` | Aplicação recusa subida se o schema não estiver na versão exata esperada pelo código |
 | **Cliente Duplicado** | Reenvio de payload idêntico | Verificação de idempotência em O(1) indexada | Retorna análise original com flag `idempotencyHit: true` sem reprocessar regras |
 
 ---
 
-## 6. Telemetria e Métricas Prometheus
+## 6. Telemetria, Métricas Prometheus & Health Checks
 
 As métricas personalizadas registradas via Micrometer estão expostas em `/actuator/prometheus`:
 
@@ -287,3 +318,10 @@ As métricas personalizadas registradas via Micrometer estão expostas em `/actu
 - `fraud.decisions.total` (**Counter**): Volume total de transações avaliadas por veredito.
 - `fraud.capital.protected.amount` (**Counter**): Somatório financeiro (BRL) do volume financeiro fraudulento evitado por bloqueios.
 - `fraud.idempotency.hits` (**Counter**): Contabilização de requisições idempotentes interceptadas sem recalcular regras.
+
+### Custom Health Indicator (`/actuator/health`)
+O componente [`FraudEngineHealthIndicator`](file:///src/main/java/com/felipedev/frauddetection/infrastructure/health/FraudEngineHealthIndicator.java) publica diagnósticos em tempo real:
+- Prontidão da esteira de 7 regras ativas.
+- Contadores de eventos pendentes e falhados na tabela de Outbox.
+- Integração nativa com probes de Readiness/Liveness do Kubernetes / AWS ECS Fargate.
+
